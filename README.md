@@ -59,3 +59,65 @@ const token = crypto.createHash('sha256').update(slug + secret).digest('hex');
 console.log(token);
 console.log(`http://localhost:3000/gym?p=${token}`);
 ```
+
+## Build & Deployment
+
+These steps show a typical production build and run for a Next.js app. Adjust environment variables as needed.
+
+1. Install dependencies (if not already done)
+
+```bash
+npm ci
+```
+
+2. Build the app for production
+
+```bash
+npm run build
+```
+
+3. Start the production server
+
+```bash
+NODE_ENV=production
+QR_SECRET_KEY="your-secret-here"
+PORT=3000
+npm run start
+```
+
+Environment variables to consider:
+
+- `QR_SECRET_KEY` — secret used to compute gym tokens (required for QR/token validation)
+- `PORT` — TCP port Next.js should listen on (defaults to 3000)
+- Any other env vars your deployment environment requires (DB paths, SENTRY, etc.)
+
+Docker example (simple):
+
+```Dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json pnpm-lock.yaml* ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app .
+ENV NODE_ENV=production
+ENV PORT=3000
+EXPOSE 3000
+CMD ["npm","run","start"]
+```
+
+Build & run the image:
+
+```bash
+docker build -t pokehunt:latest .
+docker run -e QR_SECRET_KEY="your-secret" -p 3000:3000 pokehunt:latest
+```
+
+Notes:
+
+- This project uses SQLite by default and stores the DB file in `db/pokehunt.db`. When running in Docker or in production, ensure the `db/` directory is persisted in a volume or placed on a writable filesystem so data is retained across container restarts.
+- For multi-instance deployments, consider moving to a shared database (Postgres, etc.) and updating `db/db.ts` accordingly.
