@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <filter id="ds" x="-20%" y="-20%" width="140%" height="140%">
+      <feOffset dx="0" dy="2" in="SourceAlpha" result="off"/>
+      <feGaussianBlur in="off" stdDeviation="3" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.35 0" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="128" height="128" rx="16" fill="#111827" filter="url(#ds)" />
+  <text x="50%" y="54%" font-size="56" text-anchor="middle" fill="#F3F4F6" dominant-baseline="middle" filter="url(#ds)">🌑</text>
+</svg>

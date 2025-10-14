@@ -1,26 +1,182 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.625rem;
+  /* explicit, consistent color tokens for the app theme */
+  --background: #071428; /* very dark blue */
+  --surface: #0b2545; /* deep blue gradient companion */
+  --card: #10273b; /* card background */
+  --card-foreground: #ffffff;
+  --foreground: #ffffff;
+  --card-foreground: white;
+  --popover: oklch(1 0 0);
+  --popover-foreground: white;
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: white;
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: white;
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: white;
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: white;
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: #081425;
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-primary: #0f2b4a;
+  --sidebar-primary-foreground: #fff7cc;
+  --sidebar-accent: #153757;
+  --sidebar-accent-foreground: #ffd54f;
+  --sidebar-border: rgba(255,255,255,0.06);
+  --sidebar-ring: rgba(255,255,255,0.08);
+}
+
+@font-face {
+  font-family: 'PKMNDPB';
+  src: url('/fonts/pkmndpb.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+.dark {
+  /* dark mode tokens (keep similar but allow toggling) */
+  --background: #071428;
+  --surface: #0b2545;
+  --card: #0f2b4a;
+  --card-foreground: #ffffff;
+  --popover: #0f2b4a;
+  --popover-foreground: #ffffff;
+  --primary: #ffd54f; /* yellow accent */
+  --primary-foreground: #071428;
+  --secondary: #1f3b59;
+  --secondary-foreground: #ffffff;
+  --muted: #183144;
+  --muted-foreground: rgba(255,255,255,0.6);
+  --accent: #ffd54f;
+  --accent-foreground: #071428;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+}
+
+@layer base {
+  /* make default text white to match dark-blue theme */
+  html, body, #__next, #root {
+    color: var(--foreground);
+    background: linear-gradient(180deg, var(--surface), var(--background));
+    /* Prefer DM Sans via the next/font variable, fall back to system sans */
+    font-family: var(--font-dm-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    /* Larger base font so rem-based Tailwind sizes are bigger site-wide */
+    font-size: 20px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Headings use the bold PKMNDPB font */
+  /* Keep headings using the site's default/system fonts unless explicitly requested
+     (we don't force PKMNDPB globally). */
+
+  /* Apply bold local font specifically to card headers and titles only */
+  [data-slot="card-header"], [data-slot="card-title"] {
+    font-family: var(--font-pkmndpb), 'PKMNDPB', var(--font-pkmndp), 'PKMNDP', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    font-weight: 700;
+    text-shadow: none; /* keep card titles crisp */
+  }
+
+  /* Global headings: keep using the site's default/inter font unless scoped explicitly */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-dm-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    font-weight: 700;
+    text-shadow: none;
+  }
+
+  /* No global outline — remove multi-directional text-shadow so fonts render normally */
+
+  /* Ensure monospace utility uses DM Mono so PINs and mono text render in the chosen mono font */
+  .font-mono {
+    font-family: var(--font-dm-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace !important;
+  }
+
+  /* Code blocks and monospace areas should use DM Mono */
+  code, pre, kbd, samp, .mono {
+    font-family: var(--font-dm-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+  }
+
+  /* Utility to apply PKMNDPB for specific titles/labels */
+  .font-pkmndpb {
+    font-family: var(--font-pkmndpb), 'PKMNDPB', var(--font-dm-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    text-shadow: none;
+  }
+
+  /* Keep outlining applied to body-like elements only (not headings) */
+  /* headings are intentionally excluded from the global outline */
+
+  /* ensure form elements inherit app foreground and use transparent surfaces */
+  input, textarea, select, button {
+    color: inherit;
+    background: transparent;
+    border-color: rgba(255,255,255,0.06);
+  }
+
+  a {
+    color: var(--accent-foreground);
+  }
+
+  .card, .card * {
+    color: var(--card-foreground);
+  }
 }
