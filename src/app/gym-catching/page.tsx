@@ -40,8 +40,8 @@ export default function GymCatchingPage() {
           try {
             const gymsRes = await fetch('/api/gyms');
             if (gymsRes.ok) {
-              const gyms = await gymsRes.json();
-              const matched = gyms.find((g: any) => g.name === data.name || g.id === data.gymId);
+              const gyms: { id: number; name: string; badge_filename?: string }[] = await gymsRes.json();
+              const matched = gyms.find((g) => g.name === data.name || g.id === data.gymId);
               if (matched && matched.badge_filename) {
                 setBadgeUrl(`/badges/${matched.badge_filename}`);
               }
@@ -59,7 +59,7 @@ export default function GymCatchingPage() {
               void el.offsetWidth;
               el.classList.add('shake');
             }
-            try { (navigator as any).vibrate?.(200); } catch {}
+            try { (navigator as Navigator & { vibrate?: (pattern: number | number[]) => void }).vibrate?.(200); } catch {}
             setTimeout(() => router.push('/dashboard'), 1800);
           } else {
             setStatus('error');

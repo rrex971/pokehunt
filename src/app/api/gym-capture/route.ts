@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
   return new Promise<NextResponse>((resolve) => {
     // load all gyms and try to match
-    db.all('SELECT id, slug, name FROM gyms', [], (err, rows) => {
+    db.all('SELECT id, slug, name FROM gyms', [], (err: Error | null, rows: { id: number; slug: string; name: string }[]) => {
       if (err) {
         resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
         return;
@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
 
       let matched: { id: number; slug: string; name: string } | null = null;
       for (const r of rows) {
-        if (verifyGymHash((r as any).slug, gymHash)) {
-          matched = r as any;
+        if (verifyGymHash(r.slug, gymHash)) {
+          matched = r;
           break;
         }
       }
