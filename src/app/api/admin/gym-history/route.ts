@@ -17,9 +17,16 @@ export async function GET(req: NextRequest) {
     const pool = await getPool();
 
     // Load gyms from config file
+    interface GymData {
+      id: number;
+      slug: string;
+      name: string;
+      description?: string;
+    }
+    
     const gymsPath = path.join(process.cwd(), 'config', 'gyms.json');
-    const gymsData = JSON.parse(fs.readFileSync(gymsPath, 'utf-8'));
-    const gymsMap = new Map(gymsData.map((g: any) => [g.id, g]));
+    const gymsData = JSON.parse(fs.readFileSync(gymsPath, 'utf-8')) as GymData[];
+    const gymsMap = new Map(gymsData.map((g: GymData) => [g.id, g]));
 
     let query = `
       SELECT 
@@ -42,7 +49,7 @@ export async function GET(req: NextRequest) {
     
     // Enrich with gym names and filter by search if needed
     let rows = result.rows.map(row => {
-      const gym = gymsMap.get(row.gymId) as any;
+      const gym = gymsMap.get(row.gymId);
       return {
         ...row,
         gymName: gym?.name || 'Unknown Gym'

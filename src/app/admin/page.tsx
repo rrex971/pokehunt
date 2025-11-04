@@ -180,7 +180,7 @@ export default function AdminPage() {
         
         // Fetch sprites for all Pokemon in history
         if (Array.isArray(data) && data.length > 0) {
-          const uniqueNames = [...new Set(data.map((p: any) => p.name))];
+          const uniqueNames = [...new Set(data.map((p: { name: string }) => p.name))];
           for (const name of uniqueNames) {
             // Check if already cached
             setHistoryPokeMeta((s) => {
