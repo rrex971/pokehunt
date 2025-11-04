@@ -27,6 +27,19 @@ export default function CatchingPage() {
       }
 
       try {
+        // Decode the hash to get the Pokemon name early so we can prefetch
+        const decoded = atob(pokemonHash);
+        const pokemonName = decoded.split(':')[0];
+        
+        // Start prefetching sprite immediately (don't await)
+        const spritePromise = fetch(`/api/poke-meta?name=${encodeURIComponent(pokemonName)}`, {
+          credentials: 'include'
+        })
+          .then(metaRes => metaRes.ok ? metaRes.json() : null)
+          .then(metaJson => metaJson?.sprite || null)
+          .catch(() => null);
+
+        // Start catch request (parallel with sprite fetch)
         const res = await fetch('/api/catch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -38,24 +51,15 @@ export default function CatchingPage() {
         if (res.ok) {
           setPokemonName(data.name || null);
           setMessage(data.message || 'Caught!');
-          setStatus('success');
-
-          // Best-effort: fetch sprite from PokeAPI
-          if (data.name) {
-            try {
-              const pokeRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${encodeURIComponent(data.name.toLowerCase())}`);
-              if (pokeRes.ok) {
-                const pokeJson = await pokeRes.json();
-                if (pokeJson?.sprites?.front_default) {
-                  setSpriteUrl(pokeJson.sprites.front_default as string);
-                }
-              }
-            } catch (e) {
-              // ignore; fall back to emoji
-            }
+          
+          // Wait for sprite to finish loading
+          const sprite = await spritePromise;
+          if (sprite) {
+            setSpriteUrl(sprite);
           }
-
-          setTimeout(() => router.push('/dashboard'), 1800);
+          
+          setStatus('success');
+          setTimeout(() => router.push('/dashboard'), 3000);
         } else {
           // handle specific duplicate-catch (409)
           if (res.status === 409) {
@@ -75,7 +79,7 @@ export default function CatchingPage() {
               nv.vibrate?.(200);
             } catch {}
             // keep the message visible a bit longer
-            setTimeout(() => router.push('/dashboard'), 1800);
+            setTimeout(() => router.push('/dashboard'), 2200);
           } else {
             setStatus('error');
             setMessage(data.message || 'Failed to catch');
@@ -94,9 +98,14 @@ export default function CatchingPage() {
 
   return (
     <div className="fixed inset-0 bg-gradient-to-b from-sky-900 to-blue-800 text-white flex items-center justify-center z-50">
-  <div className="flex flex-col items-center gap-6 px-4">
+      <div className="flex flex-col items-center gap-6 px-4">
         {status === 'loading' ? (
-          <div className="text-center opacity-90">Catching...</div>
+          <div className="flex flex-col items-center gap-4">
+            <div className="pokeball-bounce" aria-hidden>
+              <Image src="/icons/pokeball.svg" alt="Pokeball" width={80} height={80} unoptimized />
+            </div>
+            <div className="text-center text-lg opacity-90">Catching...</div>
+          </div>
         ) : null}
 
         {status === 'error' ? (
@@ -115,8 +124,8 @@ export default function CatchingPage() {
                 })()}
               </div>
             ) : (
-              <div className="emoji scale-in z-10" aria-hidden>
-                {emojiForName(pokemonName)}
+              <div className="pokeball-placeholder scale-in z-10" aria-hidden>
+                <Image src="/icons/pokeball.svg" alt="Pokeball" width={120} height={120} unoptimized />
               </div>
             )}
 
@@ -127,6 +136,16 @@ export default function CatchingPage() {
       </div>
 
       <style jsx>{`
+        .pokeball-bounce {
+          animation: bounce 0.6s cubic-bezier(0.28, 0.84, 0.42, 1) infinite;
+          filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4));
+        }
+
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-20px); }
+        }
+
         .scale-in {
           transform: scale(0);
           opacity: 0;
@@ -137,6 +156,10 @@ export default function CatchingPage() {
           0% { transform: scale(0); opacity: 0; }
           70% { transform: scale(1.28); opacity: 1; }
           100% { transform: scale(1.18); opacity: 1; }
+        }
+
+        .pokeball-placeholder {
+          filter: drop-shadow(0 12px 30px rgba(0,0,0,0.6));
         }
 
         .emoji {
@@ -175,6 +198,7 @@ export default function CatchingPage() {
         @media (prefers-reduced-motion: reduce) {
           .scale-in { animation: none; transform: none; opacity: 1; }
           .glow-lines { animation: none; }
+          .pokeball-bounce { animation: none; }
         }
         .error-message {
           transition: transform 160ms ease, opacity 160ms ease;

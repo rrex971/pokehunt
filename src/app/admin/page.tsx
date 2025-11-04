@@ -9,6 +9,21 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 
+// Helper to format UTC timestamps to IST
+function formatIST(utcDateString: string) {
+  const date = new Date(utcDateString);
+  // Add 5 hours 30 minutes (19800000 ms) for IST
+  const istDate = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
+  return istDate.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+}
+
 interface Team {
   id: number;
   name: string;
@@ -31,6 +46,18 @@ export default function AdminPage() {
   const [showNewPin, setShowNewPin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Pokemon history modal state
+  const [showPokemonHistory, setShowPokemonHistory] = useState(false);
+  const [pokemonHistorySearch, setPokemonHistorySearch] = useState('');
+  const [pokemonHistory, setPokemonHistory] = useState<Array<{ 
+    id: number; 
+    name: string; 
+    teamId: number; 
+    teamName: string; 
+    caughtAt: string 
+  }>>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const fetchTeams = useCallback(async () => {
     setLoading(true);
@@ -57,7 +84,25 @@ export default function AdminPage() {
   useEffect(() => {
     fetchTeams();
     fetchGyms();
+    prefetchAllPokemonMetadata();
   }, [fetchTeams]);
+
+  const prefetchAllPokemonMetadata = async () => {
+    try {
+      const res = await fetch('/api/admin/prefetch-pokemon', { 
+        method: 'POST',
+        credentials: 'include' 
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.metadata) {
+          setTeamPokeMeta(data.metadata);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to prefetch Pokemon metadata:', err);
+    }
+  };
 
   const fetchGyms = useCallback(async () => {
     try {
@@ -108,6 +153,32 @@ export default function AdminPage() {
     window.location.href = '/login';
   };
 
+  const fetchPokemonHistory = async (searchName?: string) => {
+    setHistoryLoading(true);
+    try {
+      const url = searchName 
+        ? `/api/admin/pokemon-history?name=${encodeURIComponent(searchName)}`
+        : '/api/admin/pokemon-history';
+      const res = await fetch(url, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setPokemonHistory(Array.isArray(data) ? data : []);
+      } else {
+        setPokemonHistory([]);
+      }
+    } catch {
+      setPokemonHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const openPokemonHistory = () => {
+    setShowPokemonHistory(true);
+    setPokemonHistorySearch('');
+    fetchPokemonHistory();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-[#0b2545] text-white p-4 sm:p-6 overflow-x-hidden">
       <header className="max-w-4xl mx-auto flex items-center justify-between mb-4 sm:mb-6 bg-slate-900/40 p-3 sm:p-4 rounded-lg">
@@ -116,6 +187,13 @@ export default function AdminPage() {
           <p className="text-sm text-yellow-300 hidden sm:block font-pkmndpb">A Trainer&apos;s Journey</p>
         </div>
         <div className="flex items-center space-x-3">
+          <Button onClick={openPokemonHistory} className="bg-yellow-400 text-slate-900 hover:bg-yellow-300 px-3 py-2 text-sm font-semibold flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+              <circle cx="12" cy="12" r="10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M12 6v6l4 2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Pokemon History
+          </Button>
           <Button onClick={handleLogout} className="bg-yellow-400 text-slate-900 hover:bg-yellow-300 p-2" aria-label="Logout">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5" aria-hidden>
               <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M16 17l5-5-5-5M21 12H9" />
@@ -196,18 +274,32 @@ export default function AdminPage() {
                               if (res.ok) {
                                 const data = await res.json();
                                 setTeamPokemon(Array.isArray(data) ? data : []);
-                                // fetch meta for each pokemon via server cache
+                                // fetch meta for each pokemon only if not already cached
                                 (Array.isArray(data) ? data : []).forEach(async (pp: unknown) => {
                                   const name = (pp as Record<string, unknown>)['name'] as string | undefined;
                                   if (!name) return;
-                                  try {
-                                    const r2 = await fetch(`/api/poke-meta?name=${encodeURIComponent(name)}`);
-                                    if (!r2.ok) return;
-                                    const jd = await r2.json();
-                                    setTeamPokeMeta((s) => ({ ...s, [name]: { sprite: jd.sprite, types: jd.types } }));
-                                  } catch {
-                                    // ignore individual meta fetch errors
-                                  }
+                                  
+                                  // Skip if already in cache
+                                  setTeamPokeMeta((s) => {
+                                    if (s[name]) return s; // Already cached
+                                    
+                                    // Fetch from API if not cached
+                                    fetch(`/api/poke-meta?name=${encodeURIComponent(name)}`)
+                                      .then(r2 => {
+                                        if (!r2.ok) return;
+                                        return r2.json();
+                                      })
+                                      .then(jd => {
+                                        if (jd) {
+                                          setTeamPokeMeta((prev) => ({ ...prev, [name]: { sprite: jd.sprite, types: jd.types } }));
+                                        }
+                                      })
+                                      .catch(() => {
+                                        // ignore individual meta fetch errors
+                                      });
+                                    
+                                    return s;
+                                  });
                                 });
                               } else {
                                 setError('Failed to load team pokemon');
@@ -275,7 +367,7 @@ export default function AdminPage() {
                 {gymsList.length === 0 ? (
                   <p className="text-sm text-slate-300">No gyms yet.</p>
                 ) : (
-                  <ul className="divide-y">
+                  <ul className="divide-y divide-slate-700">
                     {gymsList.map((g) => (
                       <li key={g.id} className="p-2 flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -334,7 +426,9 @@ export default function AdminPage() {
                               p.name
                             )}
                           </div>
-                          <div className="text-xs text-slate-400">{new Date(p.caughtAt).toLocaleString()}</div>
+                          <div className="text-xs text-slate-400">
+                            {formatIST(p.caughtAt)}
+                          </div>
                           {teamPokeMeta[p.name]?.types && (
                             <div className="flex items-center gap-2 mt-1">
                               {teamPokeMeta[p.name]?.types?.map((t) => {
@@ -396,7 +490,9 @@ export default function AdminPage() {
                           </div>
                           <div>
                             <div className="font-semibold">{b.name}</div>
-                            <div className="text-xs text-slate-400">{new Date(b.capturedAt).toLocaleString()}</div>
+                            <div className="text-xs text-slate-400">
+                              {formatIST(b.capturedAt)}
+                            </div>
                           </div>
                         </div>
                         <div>
@@ -426,6 +522,89 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pokemon History Modal */}
+      {showPokemonHistory && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 animate-fade-in z-50">
+          <div className="bg-slate-800/95 rounded-lg max-w-4xl w-full p-6 border border-slate-700 backdrop-blur-lg animate-modal-in relative z-50 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">Pokémon Catch History</h3>
+              <Button size="sm" onClick={() => setShowPokemonHistory(false)}>Close</Button>
+            </div>
+
+            <div className="mb-4">
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="Search Pokémon by name..."
+                  value={pokemonHistorySearch}
+                  onChange={(e) => setPokemonHistorySearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      fetchPokemonHistory(pokemonHistorySearch);
+                    }
+                  }}
+                  className="flex-1 border-slate-700 focus:border-slate-400"
+                />
+                <Button onClick={() => fetchPokemonHistory(pokemonHistorySearch)}>
+                  Search
+                </Button>
+                {pokemonHistorySearch && (
+                  <Button variant="outline" onClick={() => {
+                    setPokemonHistorySearch('');
+                    fetchPokemonHistory();
+                  }}>
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto">
+              {historyLoading ? (
+                <p className="text-slate-300 text-center py-8">Loading...</p>
+              ) : pokemonHistory.length === 0 ? (
+                <p className="text-slate-300 text-center py-8">
+                  {pokemonHistorySearch ? 'No Pokémon found matching your search.' : 'No Pokémon catches recorded yet.'}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {pokemonHistory.map((entry) => (
+                    <div 
+                      key={entry.id} 
+                      className="bg-slate-700/50 rounded-lg p-4 flex items-center justify-between hover:bg-slate-700/70 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="text-2xl">🔴</div>
+                        <div>
+                          <div className="font-semibold text-lg">{entry.name}</div>
+                          <div className="text-sm text-slate-300">
+                            Caught by: <span className="text-yellow-300 font-medium">{entry.teamName}</span> (Team #{entry.teamId})
+                          </div>
+                          <div className="text-xs text-slate-400 mt-1">
+                            {formatIST(entry.caughtAt)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Summary */}
+            {!historyLoading && pokemonHistory.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-700">
+                <p className="text-sm text-slate-300">
+                  Showing {pokemonHistory.length} {pokemonHistory.length === 1 ? 'catch' : 'catches'}
+                  {pokemonHistorySearch && ` for "${pokemonHistorySearch}"`}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

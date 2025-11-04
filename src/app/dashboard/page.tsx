@@ -9,6 +9,21 @@ import TypeIcon from '@/components/TypeIcon';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+// Helper to format UTC timestamps to IST
+function formatIST(utcDateString: string) {
+  const date = new Date(utcDateString);
+  // Add 5 hours 30 minutes (19800000 ms) for IST
+  const istDate = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
+  return istDate.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+}
+
 interface Pokemon {
   id: number;
   name: string;
@@ -29,6 +44,7 @@ export default function DashboardPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    prefetchAllPokemonMetadata();
     fetchPokemon();
     fetchBadges();
     // fetch current team info
@@ -43,6 +59,23 @@ export default function DashboardPage() {
       }
     })();
   }, []);
+
+  const prefetchAllPokemonMetadata = async () => {
+    try {
+      const res = await fetch('/api/admin/prefetch-pokemon', { 
+        method: 'POST',
+        credentials: 'include' 
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.metadata) {
+          setPokeMeta(data.metadata);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to prefetch Pokemon metadata:', err);
+    }
+  };
 
   const fetchBadges = async () => {
     try {
@@ -61,19 +94,33 @@ export default function DashboardPage() {
       if (res.ok) {
         const data = await res.json();
         setPokemon(Array.isArray(data) ? data : []);
-        // fetch metadata for unique pokemon names
+        // fetch metadata for unique pokemon names only if not cached
         const rawNames = (Array.isArray(data) ? data : []).map((d: unknown) => ((d as Record<string, unknown>)['name'] as string | undefined));
         const names = Array.from(new Set(rawNames.filter((n): n is string => typeof n === 'string')));
-        names.forEach(async (name: string) => {
-          if (!name || pokeMeta[name]) return;
-          try {
-            const r = await fetch(`/api/poke-meta?name=${encodeURIComponent(name)}`);
-            if (!r.ok) return;
-            const jd = await r.json();
-            setPokeMeta((s) => ({ ...s, [name]: { sprite: jd.sprite, types: jd.types } }));
-          } catch (e) {
-            // ignore
-          }
+        names.forEach((name: string) => {
+          if (!name) return;
+          
+          // Skip if already cached
+          setPokeMeta((s) => {
+            if (s[name]) return s; // Already cached
+            
+            // Fetch if not cached
+            fetch(`/api/poke-meta?name=${encodeURIComponent(name)}`)
+              .then(r => {
+                if (!r.ok) return;
+                return r.json();
+              })
+              .then(jd => {
+                if (jd) {
+                  setPokeMeta((prev) => ({ ...prev, [name]: { sprite: jd.sprite, types: jd.types } }));
+                }
+              })
+              .catch(() => {
+                // ignore
+              });
+            
+            return s;
+          });
         });
         // load links map from public json (best-effort)
         try {
@@ -241,7 +288,9 @@ export default function DashboardPage() {
                             p.name
                           )}
                         </div>
-                        <div className="text-[0.68rem] text-slate-400">{new Date(p.caughtAt).toLocaleString()}</div>
+                        <div className="text-[0.68rem] text-slate-400">
+                          {formatIST(p.caughtAt)}
+                        </div>
                         {pokeMeta[p.name]?.types && (
                           <div className="flex items-center gap-2 mt-1">
                             {pokeMeta[p.name]?.types?.map((t) => {
