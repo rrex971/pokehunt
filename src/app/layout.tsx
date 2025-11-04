@@ -25,11 +25,21 @@ const pkmndpb = localFont({
 export const metadata: Metadata = {
   title: "Pokéhunt — A Trainer's Journey",
   description: "Pokéhunt: capture badges and hunt Pokémon",
-  icons: {
-    icon: '/icons/pokeball.svg',
-    shortcut: '/icons/pokeball.svg',
-    apple: '/icons/pokeball.svg'
-  }
+  icons: [
+    {
+      rel: 'icon',
+      url: '/icons/pokeball.svg',
+      type: 'image/svg+xml',
+    },
+    {
+      rel: 'shortcut icon',
+      url: '/icons/pokeball.svg',
+    },
+    {
+      rel: 'apple-touch-icon',
+      url: '/icons/pokeball.svg',
+    },
+  ],
 };
 
 export default function RootLayout({
