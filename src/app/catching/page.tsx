@@ -27,19 +27,7 @@ export default function CatchingPage() {
       }
 
       try {
-        // Decode the hash to get the Pokemon name early so we can prefetch
-        const decoded = atob(pokemonHash);
-        const pokemonName = decoded.split(':')[0];
-        
-        // Start prefetching sprite immediately (don't await)
-        const spritePromise = fetch(`/api/poke-meta?name=${encodeURIComponent(pokemonName)}`, {
-          credentials: 'include'
-        })
-          .then(metaRes => metaRes.ok ? metaRes.json() : null)
-          .then(metaJson => metaJson?.sprite || null)
-          .catch(() => null);
-
-        // Start catch request (parallel with sprite fetch)
+        // Start catch request
         const res = await fetch('/api/catch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -52,13 +40,25 @@ export default function CatchingPage() {
           setPokemonName(data.name || null);
           setMessage(data.message || 'Caught!');
           
-          // Wait for sprite to finish loading
-          const sprite = await spritePromise;
-          if (sprite) {
-            setSpriteUrl(sprite);
+          // Set status to success first
+          setStatus('success');
+          
+          // Fetch sprite after successful catch
+          if (data.name) {
+            fetch(`/api/poke-meta?name=${encodeURIComponent(data.name)}`, {
+              credentials: 'include'
+            })
+              .then(r => r.ok ? r.json() : null)
+              .then(j => {
+                if (j?.sprite) {
+                  setSpriteUrl(j.sprite);
+                }
+              })
+              .catch(() => {
+                // Sprite fetch failed, will show placeholder
+              });
           }
           
-          setStatus('success');
           setTimeout(() => router.push('/dashboard'), 3000);
         } else {
           // handle specific duplicate-catch (409)

@@ -8,6 +8,7 @@ import TeamPin from '@/components/TeamPin';
 import TypeIcon from '@/components/TypeIcon';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // Helper to format UTC timestamps to IST
 function formatIST(utcDateString: string) {
@@ -42,6 +43,7 @@ export default function DashboardPage() {
   const [exportedPaste, setExportedPaste] = useState<string>('');
   const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [teamBuilderSearch, setTeamBuilderSearch] = useState('');
 
   useEffect(() => {
     prefetchAllPokemonMetadata();
@@ -358,6 +360,7 @@ export default function DashboardPage() {
                 setSelectedTeam([]);
                 setExportedPaste('');
                 setCopied(false);
+                setTeamBuilderSearch('');
               }}>Close</Button>
             </div>
 
@@ -387,8 +390,20 @@ export default function DashboardPage() {
 
             <div className="mb-4">
               <h4 className="text-sm font-semibold mb-2 text-slate-200">Available Pokémon</h4>
+              <Input
+                type="text"
+                placeholder="Search Pokémon..."
+                value={teamBuilderSearch}
+                onChange={(e) => setTeamBuilderSearch(e.target.value)}
+                className="mb-3 border-slate-700 focus:border-slate-400"
+              />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-2 bg-slate-900/30 rounded border border-slate-700">
-                {pokemon.map((p) => {
+                {pokemon
+                  .filter((p) => 
+                    !teamBuilderSearch || 
+                    p.name.toLowerCase().includes(teamBuilderSearch.toLowerCase())
+                  )
+                  .map((p) => {
                   const isSelected = selectedTeam.includes(p.name);
                   return (
                     <button

@@ -73,6 +73,11 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
+    // Delete related records first to avoid foreign key constraint violations
+    await pool.query('DELETE FROM pokemon WHERE "teamId" = $1', [id]);
+    await pool.query('DELETE FROM team_badges WHERE "teamId" = $1', [id]);
+    
+    // Now delete the team
     const result = await pool.query('DELETE FROM teams WHERE id = $1', [id]);
     if (result.rowCount === 0) {
       return NextResponse.json({ message: 'Not found' }, { status: 404 });

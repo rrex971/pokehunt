@@ -117,7 +117,7 @@ export default function CroppedSprite({ src, alt = '', size = 64, className, sty
       )}
       {(() => {
         const imgStyle: React.CSSProperties = { objectFit: 'contain', imageRendering: 'pixelated', ...style };
-        return <Image src={finalSrc} alt={alt} fill style={imgStyle} unoptimized priority sizes={`${size}px`} onLoadingComplete={() => setLoaded(true)} />;
+        return <Image src={finalSrc} alt={alt} fill style={imgStyle} unoptimized priority sizes={`${size}px`} onLoad={() => setLoaded(true)} />;
       })()}
     </div>
   );
