@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/db/db';
+import getPool from '@/db/db';
 import { getSession } from '@/lib/session';
 
 export async function GET(req: NextRequest) {
@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
+  const pool = await getPool();
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q') || '';
 
@@ -17,29 +18,22 @@ export async function GET(req: NextRequest) {
   const isNumeric = q && /^\d+$/.test(q);
   const likeQ = `%${q}%`;
 
-  return new Promise<NextResponse>((resolve) => {
+  try {
+    let result;
     if (q) {
       const sql = isNumeric
-        ? 'SELECT id, name, pin FROM teams WHERE id = ? OR name LIKE ?'
-        : 'SELECT id, name, pin FROM teams WHERE name LIKE ?';
+        ? 'SELECT id, name, pin FROM teams WHERE id = $1 OR name ILIKE $2'
+        : 'SELECT id, name, pin FROM teams WHERE name ILIKE $1';
       const params = isNumeric ? [Number(q), likeQ] : [likeQ];
-      db.all(sql, params, (err, rows) => {
-        if (err) {
-          resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-          return;
-        }
-        resolve(NextResponse.json(rows));
-      });
+      result = await pool.query(sql, params);
     } else {
-      db.all('SELECT id, name, pin FROM teams', [], (err, rows) => {
-        if (err) {
-          resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-          return;
-        }
-        resolve(NextResponse.json(rows));
-      });
+      result = await pool.query('SELECT id, name, pin FROM teams');
     }
-  });
+    return NextResponse.json(result.rows);
+  } catch (err) {
+    console.error('Database error:', err);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -49,18 +43,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
+  const pool = await getPool();
   const { name, pin: providedPin } = await req.json();
   const pin = providedPin && /^\d{4}$/.test(providedPin) ? providedPin : Math.floor(1000 + Math.random() * 9000).toString();
 
-  return new Promise<NextResponse>((resolve) => {
-    db.run('INSERT INTO teams (name, pin) VALUES (?, ?)', [name, pin], function (err) {
-      if (err) {
-        resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-        return;
-      }
-      resolve(NextResponse.json({ id: this.lastID, name, pin }));
-    });
-  });
+  try {
+    const result = await pool.query(
+      'INSERT INTO teams (name, pin) VALUES ($1, $2) RETURNING *',
+      [name, pin]
+    );
+    return NextResponse.json(result.rows[0]);
+  } catch (err) {
+    console.error('Database error:', err);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: NextRequest) {
@@ -70,22 +66,20 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
+  const pool = await getPool();
   const { id } = await req.json();
   if (!id) {
     return NextResponse.json({ message: 'Missing id' }, { status: 400 });
   }
 
-  return new Promise<NextResponse>((resolve) => {
-    db.run('DELETE FROM teams WHERE id = ?', [id], function (err) {
-      if (err) {
-        resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-        return;
-      }
-      if (this.changes === 0) {
-        resolve(NextResponse.json({ message: 'Not found' }, { status: 404 }));
-        return;
-      }
-      resolve(NextResponse.json({ ok: true }));
-    });
-  });
+  try {
+    const result = await pool.query('DELETE FROM teams WHERE id = $1', [id]);
+    if (result.rowCount === 0) {
+      return NextResponse.json({ message: 'Not found' }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('Database error:', err);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
 }

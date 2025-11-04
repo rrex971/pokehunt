@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { getTypeColor, darkenHex } from '@/lib/pokemonColors';
+import TypeIcon from '@/components/TypeIcon';
 import CroppedSprite from '@/components/CroppedSprite';
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,10 +24,10 @@ export default function AdminPage() {
   const [revealedPins, setRevealedPins] = useState<Record<number, boolean>>({});
   const [viewingTeamId, setViewingTeamId] = useState<number | null>(null);
   const [teamPokemon, setTeamPokemon] = useState<Array<{ id: number; name: string; caughtAt: string }>>([]);
-  const [teamBadges, setTeamBadges] = useState<Array<{ id: number; gymId: number; slug: string; name: string; badge_filename?: string; capturedAt: string }>>([]);
+  const [teamBadges, setTeamBadges] = useState<Array<{ id: number; gymId: number; slug: string; name: string; capturedAt: string }>>([]);
   const [linksMap, setLinksMap] = useState<Record<string, string>>({});
   const [teamPokeMeta, setTeamPokeMeta] = useState<Record<string, { sprite?: string; types?: string[] }>>({});
-  const [gymsList, setGymsList] = useState<Array<{ id: number; slug: string; name: string; badge_filename?: string; description?: string }>>([]);
+  const [gymsList, setGymsList] = useState<Array<{ id: number; slug: string; name: string; description?: string }>>([]);
   const [showNewPin, setShowNewPin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -279,9 +280,8 @@ export default function AdminPage() {
                       <li key={g.id} className="p-2 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded overflow-hidden bg-transparent flex items-center justify-center">
-                            {g.badge_filename ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={`/badges/${g.badge_filename}`} alt={g.name} className="w-10 h-10 object-contain" />
+                            {g.slug ? (
+                              <TypeIcon type={g.slug} size={36} withGlow />
                             ) : (
                               <div className="text-2xl">🏅</div>
                             )}
@@ -290,27 +290,6 @@ export default function AdminPage() {
                             <div className="font-semibold">{g.name}</div>
                             <div className="text-xs text-slate-400">{g.slug}</div>
                           </div>
-                        </div>
-                        <div>
-                          <Button size="sm" variant="destructive" onClick={async () => {
-                            if (!confirm('Delete gym ' + g.name + ' (ID: ' + g.id + ')? This will also remove awarded badges for this gym.')) return;
-                            try {
-                              const res = await fetch('/api/gyms', {
-                                method: 'DELETE',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ id: g.id }),
-                                credentials: 'include',
-                              });
-                              if (res.ok) {
-                                setGymsList((arr) => arr.filter((x) => x.id !== g.id));
-                              } else {
-                                const d = await res.json().catch(() => ({}));
-                                setError((d as { message?: string })?.message || 'Failed to delete gym');
-                              }
-                            } catch (err: unknown) {
-                              setError((err as Error)?.message || 'Network error');
-                            }
-                          }}>Delete</Button>
                         </div>
                       </li>
                     ))}
@@ -323,8 +302,8 @@ export default function AdminPage() {
       </main>
       {/* Modal for viewing team pokemon */}
       {viewingTeamId !== null && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-slate-800/80 rounded-lg max-w-2xl w-full p-4 border border-slate-700">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 animate-fade-in z-50">
+          <div className="bg-slate-800/80 rounded-lg max-w-2xl w-full p-4 border border-slate-700 backdrop-blur-lg animate-modal-in relative z-50">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold">Team {viewingTeamId} Pokémon</h3>
               <div className="space-x-2">
@@ -362,7 +341,10 @@ export default function AdminPage() {
                                 const bg = getTypeColor(t);
                                 const border = darkenHex(bg, 0.25);
                                 return (
-                                  <span key={t} style={{ background: `#${bg}`, border: `3px solid #${border}`, textTransform: 'uppercase' }} className="text-white text-xs px-2 py-1 rounded-full font-bold">{t}</span>
+                                  <span key={t} style={{ background: `#${bg}`, border: `3px solid #${border}` }} className="text-white text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                                    <TypeIcon type={t} size={18} />
+                                    <span className="uppercase">{t}</span>
+                                  </span>
                                 );
                               })}
                             </div>
@@ -406,9 +388,8 @@ export default function AdminPage() {
                       <li key={b.id} className="p-2 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded overflow-hidden bg-transparent flex items-center justify-center">
-                            {b.badge_filename ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={`/badges/${b.badge_filename}`} alt={b.name} className="w-10 h-10 object-contain" />
+                            {b.slug ? (
+                              <TypeIcon type={b.slug} size={36} withGlow />
                             ) : (
                               <div className="text-2xl">🏅</div>
                             )}
@@ -448,6 +429,36 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+      
+      <style jsx>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes modal-in {
+          from {
+            opacity: 0;
+            transform: scale(0.9) translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+
+        :global(.animate-fade-in) {
+          animation: fade-in 0.2s ease-out forwards;
+        }
+
+        :global(.animate-modal-in) {
+          animation: modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/db/db';
+import getPool from '@/db/db';
+import gymsData from '@/config/gyms.json';
 import { getSession } from '@/lib/session';
 import { createHash } from 'crypto';
 
@@ -16,49 +17,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
+  const pool = await getPool();
   const { gymHash } = await req.json();
   if (!gymHash) return NextResponse.json({ message: 'Missing gym data' }, { status: 400 });
 
-  return new Promise<NextResponse>((resolve) => {
-    // load all gyms and try to match
-    db.all('SELECT id, slug, name FROM gyms', [], (err: Error | null, rows: { id: number; slug: string; name: string }[]) => {
-      if (err) {
-        resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-        return;
-      }
+  // Find matching gym from static config
+  let matched: { id: number; slug: string; name: string } | null = null;
+  for (const gym of gymsData) {
+    if (verifyGymHash(gym.slug, gymHash)) {
+      matched = gym;
+      break;
+    }
+  }
 
-      let matched: { id: number; slug: string; name: string } | null = null;
-      for (const r of rows) {
-        if (verifyGymHash(r.slug, gymHash)) {
-          matched = r;
-          break;
-        }
-      }
+  if (!matched) {
+    return NextResponse.json({ message: 'Invalid gym' }, { status: 400 });
+  }
 
-      if (!matched) {
-        resolve(NextResponse.json({ message: 'Invalid gym' }, { status: 400 }));
-        return;
-      }
+  try {
+    // Check for duplicate
+    const checkResult = await pool.query(
+      'SELECT id FROM team_badges WHERE "teamId" = $1 AND "gymId" = $2',
+      [session.teamId, matched.id]
+    );
 
-      // check duplicate
-      db.get('SELECT id FROM team_badges WHERE teamId = ? AND gymId = ?', [session.teamId, matched.id], (err2, row) => {
-        if (err2) {
-          resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-          return;
-        }
-        if (row) {
-          resolve(NextResponse.json({ message: `Already captured ${matched!.name}`, name: matched!.name }, { status: 409 }));
-          return;
-        }
+    if (checkResult.rows.length > 0) {
+      return NextResponse.json(
+        { message: `Already captured ${matched.name}`, name: matched.name },
+        { status: 409 }
+      );
+    }
 
-        db.run('INSERT INTO team_badges (teamId, gymId) VALUES (?, ?)', [session.teamId, matched!.id], function (err3) {
-          if (err3) {
-            resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-            return;
-          }
-          resolve(NextResponse.json({ message: `Successfully captured ${matched!.name}`, name: matched!.name }));
-        });
-      });
+    // Insert badge
+    await pool.query(
+      'INSERT INTO team_badges ("teamId", "gymId") VALUES ($1, $2)',
+      [session.teamId, matched.id]
+    );
+
+    return NextResponse.json({
+      message: `Successfully captured ${matched.name}`,
+      name: matched.name
     });
-  });
+  } catch (err) {
+    console.error('Database error:', err);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
 }

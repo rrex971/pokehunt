@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/db/db';
+import getPool from '@/db/db';
 import sharp from 'sharp';
 
 type PokeMeta = {
@@ -119,62 +119,67 @@ export async function GET(req: NextRequest) {
   const name = url.searchParams.get('name');
   if (!name) return NextResponse.json({ message: 'Missing name' }, { status: 400 });
 
-  return new Promise<NextResponse>((resolve) => {
-    db.get('SELECT * FROM poke_meta WHERE name = ?', [name], async (err: Error | null, row?: { name?: string; sprite?: string; types?: string } | null) => {
-      if (err) {
-        resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-        return;
-      }
-      // If cached row exists, return it
-      if (row) {
-        try {
-          const types = row.types ? JSON.parse(row.types as string) : [];
-          resolve(NextResponse.json({ name: row.name as string, sprite: row.sprite as string, types }));
-        } catch (e) {
-          resolve(NextResponse.json({ name: row.name as string, sprite: row.sprite as string, types: [] }));
-        }
-        return;
-      }
+  const pool = await getPool();
 
-      // Not cached: fetch from PokeAPI and insert into cache
-      const meta = await fetchFromPokeAPI(name as string);
-      if (!meta) {
-        resolve(NextResponse.json({ message: 'Not found' }, { status: 404 }));
-        return;
-      }
-      // Attempt server-side cropping and resizing using sharp
-      let processedSprite: string | null = meta.sprite;
+  try {
+    // Check cache
+    const result = await pool.query('SELECT * FROM poke_meta WHERE name = $1', [name]);
+    
+    if (result.rows.length > 0) {
+      const row = result.rows[0];
       try {
-        if (meta.sprite) {
-          const remote = await fetch(meta.sprite as string);
-          if (remote.ok) {
-            const arrayBuf = await remote.arrayBuffer();
-            const buffer = Buffer.from(arrayBuf);
-            // use sharp trim to remove transparent border, then resize to 128px max
-            const out = await sharp(buffer)
-              .trim()
-              .resize({ width: 128, height: 128, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-              .png()
-              .toBuffer();
-            processedSprite = `data:image/png;base64,${out.toString('base64')}`;
-          }
-        }
+        const types = row.types ? JSON.parse(row.types) : [];
+        return NextResponse.json({ name: row.name, sprite: row.sprite, types });
       } catch (e) {
-        // fall back to original remote sprite on error
-        processedSprite = meta.sprite;
+        return NextResponse.json({ name: row.name, sprite: row.sprite, types: [] });
       }
+    }
 
-      const typesStr = JSON.stringify(meta.types || []);
-      db.run('INSERT OR REPLACE INTO poke_meta (name, sprite, types, fetchedAt) VALUES (?, ?, ?, CURRENT_TIMESTAMP)', [name, processedSprite, typesStr], (err2) => {
-        if (err2) {
-          // return what we fetched even if DB write fails
-          resolve(NextResponse.json({ name, sprite: processedSprite, types: meta.types }));
-          return;
+    // Not cached: fetch from PokeAPI and insert into cache
+    const meta = await fetchFromPokeAPI(name);
+    if (!meta) {
+      return NextResponse.json({ message: 'Not found' }, { status: 404 });
+    }
+
+    // Attempt server-side cropping and resizing using sharp
+    let processedSprite: string | null = meta.sprite;
+    try {
+      if (meta.sprite) {
+        const remote = await fetch(meta.sprite);
+        if (remote.ok) {
+          const arrayBuf = await remote.arrayBuffer();
+          const buffer = Buffer.from(arrayBuf);
+          // use sharp trim to remove transparent border, then resize to 128px max
+          const out = await sharp(buffer)
+            .trim()
+            .resize({ width: 128, height: 128, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+            .png()
+            .toBuffer();
+          processedSprite = `data:image/png;base64,${out.toString('base64')}`;
         }
-        resolve(NextResponse.json({ name, sprite: processedSprite, types: meta.types }));
-      });
-    });
-  });
+      }
+    } catch (e) {
+      // fall back to original remote sprite on error
+      processedSprite = meta.sprite;
+    }
+
+    const typesStr = JSON.stringify(meta.types || []);
+    
+    try {
+      await pool.query(
+        'INSERT INTO poke_meta (name, sprite, types, "fetchedAt") VALUES ($1, $2, $3, CURRENT_TIMESTAMP) ON CONFLICT (name) DO UPDATE SET sprite = $2, types = $3, "fetchedAt" = CURRENT_TIMESTAMP',
+        [name, processedSprite, typesStr]
+      );
+    } catch (err2) {
+      // return what we fetched even if DB write fails
+      console.error('Cache write error:', err2);
+    }
+    
+    return NextResponse.json({ name, sprite: processedSprite, types: meta.types });
+  } catch (err) {
+    console.error('Database error:', err);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -182,16 +187,21 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const name = typeof body.name === 'string' ? body.name : '';
   if (!name) return NextResponse.json({ message: 'Missing name' }, { status: 400 });
+  
   const meta = await fetchFromPokeAPI(name);
   if (!meta) return NextResponse.json({ message: 'Not found' }, { status: 404 });
+  
+  const pool = await getPool();
   const typesStr = JSON.stringify(meta.types || []);
-  return new Promise<NextResponse>((resolve) => {
-    db.run('INSERT OR REPLACE INTO poke_meta (name, sprite, types, fetchedAt) VALUES (?, ?, ?, CURRENT_TIMESTAMP)', [name, meta.sprite, typesStr], (err) => {
-      if (err) {
-        resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-        return;
-      }
-      resolve(NextResponse.json({ name, sprite: meta.sprite, types: meta.types }));
-    });
-  });
+
+  try {
+    await pool.query(
+      'INSERT INTO poke_meta (name, sprite, types, "fetchedAt") VALUES ($1, $2, $3, CURRENT_TIMESTAMP) ON CONFLICT (name) DO UPDATE SET sprite = $2, types = $3, "fetchedAt" = CURRENT_TIMESTAMP',
+      [name, meta.sprite, typesStr]
+    );
+    return NextResponse.json({ name, sprite: meta.sprite, types: meta.types });
+  } catch (err) {
+    console.error('Database error:', err);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
 }

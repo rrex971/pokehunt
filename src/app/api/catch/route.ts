@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/db/db';
+import getPool from '@/db/db';
 import { getSession } from '@/lib/session';
 import { createHash } from 'crypto';
 
@@ -251,28 +251,36 @@ export async function POST(req: NextRequest) {
   }
 
   if (caughtPokemon) {
-    // Prevent duplicate catches for the same team and pokemon name
-    return new Promise<NextResponse>((resolve) => {
-      db.get('SELECT id FROM pokemon WHERE teamId = ? AND name = ?', [session.teamId, caughtPokemon], (err, row) => {
-        if (err) {
-          resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-          return;
-        }
-        if (row) {
-          // Already caught
-          resolve(NextResponse.json({ message: `Already caught ${caughtPokemon}`, name: caughtPokemon }, { status: 409 }));
-          return;
-        }
+    const pool = await getPool();
+    
+    try {
+      // Prevent duplicate catches for the same team and pokemon name
+      const checkResult = await pool.query(
+        'SELECT id FROM pokemon WHERE "teamId" = $1 AND name = $2',
+        [session.teamId, caughtPokemon]
+      );
 
-        db.run('INSERT INTO pokemon (teamId, name) VALUES (?, ?)', [session.teamId, caughtPokemon], function (err2) {
-          if (err2) {
-            resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-            return;
-          }
-          resolve(NextResponse.json({ message: `Successfully caught ${caughtPokemon}`, name: caughtPokemon }));
-        });
+      if (checkResult.rows.length > 0) {
+        // Already caught
+        return NextResponse.json(
+          { message: `Already caught ${caughtPokemon}`, name: caughtPokemon },
+          { status: 409 }
+        );
+      }
+
+      await pool.query(
+        'INSERT INTO pokemon ("teamId", name) VALUES ($1, $2)',
+        [session.teamId, caughtPokemon]
+      );
+
+      return NextResponse.json({
+        message: `Successfully caught ${caughtPokemon}`,
+        name: caughtPokemon
       });
-    });
+    } catch (err) {
+      console.error('Database error:', err);
+      return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    }
   } else {
     return NextResponse.json({ message: 'Invalid Pokemon' }, { status: 400 });
   }

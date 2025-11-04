@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/db/db';
+import getPool from '@/db/db';
+import gymsData from '@/config/gyms.json';
 import { getSession } from '@/lib/session';
 
 export async function GET(req: NextRequest) {
@@ -12,19 +13,32 @@ export async function GET(req: NextRequest) {
   const teamId = Number(url.searchParams.get('teamId')) || null;
   if (!teamId) return NextResponse.json({ message: 'Missing teamId' }, { status: 400 });
 
-  return new Promise<NextResponse>((resolve) => {
-    const sql = `SELECT tb.id as id, tb.capturedAt as capturedAt, g.id as gymId, g.slug as slug, g.name as name, g.badge_filename as badge_filename
-                 FROM team_badges tb
-                 JOIN gyms g ON g.id = tb.gymId
-                 WHERE tb.teamId = ? ORDER BY tb.capturedAt`;
-    db.all(sql, [teamId], (err, rows) => {
-      if (err) {
-        resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-        return;
-      }
-      resolve(NextResponse.json(rows));
+  const pool = await getPool();
+
+  try {
+    // Get team badges from database
+    const result = await pool.query(
+      'SELECT id, "capturedAt", "gymId" FROM team_badges WHERE "teamId" = $1 ORDER BY "capturedAt"',
+      [teamId]
+    );
+
+    // Join with static gym data
+    const badges = result.rows.map(row => {
+      const gym = gymsData.find(g => g.id === row.gymId);
+      return {
+        id: row.id,
+        capturedAt: row.capturedAt,
+        gymId: row.gymId,
+        slug: gym?.slug || '',
+        name: gym?.name || ''
+      };
     });
-  });
+
+    return NextResponse.json(badges);
+  } catch (err) {
+    console.error('Database error:', err);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: NextRequest) {
@@ -33,20 +47,18 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
+  const pool = await getPool();
   const { id } = await req.json();
   if (!id) return NextResponse.json({ message: 'Missing id' }, { status: 400 });
 
-  return new Promise<NextResponse>((resolve) => {
-    db.run('DELETE FROM team_badges WHERE id = ?', [id], function (err) {
-      if (err) {
-        resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-        return;
-      }
-      if (this.changes === 0) {
-        resolve(NextResponse.json({ message: 'Not found' }, { status: 404 }));
-        return;
-      }
-      resolve(NextResponse.json({ ok: true }));
-    });
-  });
+  try {
+    const result = await pool.query('DELETE FROM team_badges WHERE id = $1', [id]);
+    if (result.rowCount === 0) {
+      return NextResponse.json({ message: 'Not found' }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('Database error:', err);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
 }

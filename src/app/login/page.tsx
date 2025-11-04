@@ -34,11 +34,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-[#0b2545] text-white p-4 sm:p-6 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-[#0b2545] text-white p-4 sm:p-6 flex items-start sm:items-center justify-center pt-12 sm:pt-6">
       <div className="max-w-sm w-full">
-        <header className="mb-4 sm:mb-6 bg-slate-900/40 p-3 sm:p-4 rounded-lg flex flex-col items-center justify-center text-center">
-          <CroppedSprite src="/pokehuntlogo.png" alt="Pokéhunt" size={128} className="mb-2" />
-          <p className="text-base sm:text-lg font-bold text-yellow-300 font-pkmndpb">A Trainer&apos;s Journey</p>
+        <header className="mb-3 sm:mb-4 bg-slate-900/40 p-2 sm:p-6 rounded-lg flex flex-col items-center justify-center text-center">
+          <div className="mb-1 sm:mb-2">
+            <img src="/icons/pokeball.svg" alt="Pokéball" className="w-12 h-12 sm:w-16 sm:h-16" style={{ animation: 'var(--animate-pokeball-spin)' }} />
+          </div>
+          <img src="/pokehuntlogo.png" alt="Pokéhunt" className="w-32 sm:w-64 h-auto" />
+          <p className="text-sm sm:text-base font-bold text-yellow-300 font-pkmndpb mt-1">A Trainer&apos;s Journey</p>
         </header>
 
         <Card className="bg-slate-800/60 border border-slate-700">

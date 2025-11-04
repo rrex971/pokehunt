@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/db/db';
+import getPool from '@/db/db';
 import { getSession } from '@/lib/session';
 
 export async function POST(req: NextRequest) {
@@ -13,19 +13,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, isAdmin: true });
   }
 
-  return new Promise<NextResponse>((resolve) => {
-    db.get('SELECT * FROM teams WHERE id = ? AND pin = ?', [teamId, pin], async (err, row: { id: number } | undefined) => {
-      if (err) {
-        resolve(NextResponse.json({ message: 'Internal server error' }, { status: 500 }));
-        return;
-      }
-      if (row) {
-        session.teamId = row.id;
-        await session.save();
-        resolve(NextResponse.json({ ok: true, isAdmin: false }));
-      } else {
-        resolve(NextResponse.json({ message: 'Invalid Team ID or PIN' }, { status: 401 }));
-      }
-    });
-  });
+  const pool = await getPool();
+
+  try {
+    const result = await pool.query('SELECT * FROM teams WHERE id = $1 AND pin = $2', [teamId, pin]);
+    
+    if (result.rows.length > 0) {
+      const row = result.rows[0];
+      session.teamId = row.id;
+      await session.save();
+      return NextResponse.json({ ok: true, isAdmin: false });
+    } else {
+      return NextResponse.json({ message: 'Invalid Team ID or PIN' }, { status: 401 });
+    }
+  } catch (err) {
+    console.error('Database error:', err);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
 }

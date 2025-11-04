@@ -5,6 +5,7 @@ import { getTypeColor, darkenHex } from '@/lib/pokemonColors';
 import CroppedSprite from '@/components/CroppedSprite';
 import Spinner from '@/components/Spinner';
 import TeamPin from '@/components/TeamPin';
+import TypeIcon from '@/components/TypeIcon';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -18,9 +19,14 @@ export default function DashboardPage() {
   const [pokemon, setPokemon] = useState<Pokemon[]>([]);
   const [pokeMeta, setPokeMeta] = useState<Record<string, { sprite?: string; types?: string[] }>>({});
   const [linksMap, setLinksMap] = useState<Record<string, string>>({});
-  const [badges, setBadges] = useState<Array<{ id: number; gymId: number; name: string; badge_filename?: string; capturedAt: string }>>([]);
+  const [badges, setBadges] = useState<Array<{ id: number; gymId: number; slug: string; name: string; capturedAt: string }>>([]);
   const [team, setTeam] = useState<{ id: number; name: string; pin: string | null } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showTeamBuilder, setShowTeamBuilder] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<string[]>([]);
+  const [exportedPaste, setExportedPaste] = useState<string>('');
+  const [exporting, setExporting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetchPokemon();
@@ -90,6 +96,74 @@ export default function DashboardPage() {
     window.location.href = '/login';
   }
 
+  const togglePokemonInTeam = (name: string) => {
+    setSelectedTeam((prev) => {
+      if (prev.includes(name)) {
+        return prev.filter((n) => n !== name);
+      }
+      if (prev.length >= 6) {
+        return prev;
+      }
+      return [...prev, name];
+    });
+  };
+
+  const exportToPokepaste = async () => {
+    if (selectedTeam.length === 0) return;
+    setExporting(true);
+    setExportedPaste('');
+    
+    try {
+      const pastePromises = selectedTeam.map(async (name) => {
+        const link = linksMap[name];
+        if (!link) return `${name}\n\n`;
+        
+        try {
+          // Use our proxy endpoint to avoid CORS issues
+          const res = await fetch('/api/pokepaste-proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ url: link }),
+          });
+          
+          if (!res.ok) return `${name}\n\n`;
+          
+          const data = await res.json();
+          return (data.content || name) + '\n\n';
+        } catch {
+          return `${name}\n\n`;
+        }
+      });
+      
+      const results = await Promise.all(pastePromises);
+      setExportedPaste(results.join(''));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    if (!exportedPaste) return;
+    try {
+      await navigator.clipboard.writeText(exportedPaste);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = exportedPaste;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-[#0b2545] text-white p-4 sm:p-6 overflow-x-hidden">
   <header className="max-w-4xl mx-auto flex items-center justify-between mb-6 px-2 sm:px-0">
@@ -130,7 +204,16 @@ export default function DashboardPage() {
         )}
         <Card className="bg-slate-800/60 border border-slate-700">
           <CardHeader>
-            <CardTitle>Caught Pokémon</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Caught Pokémon</CardTitle>
+              <Button 
+                onClick={() => setShowTeamBuilder(true)} 
+                className="bg-yellow-400 text-slate-900 hover:bg-yellow-300 text-sm"
+                disabled={pokemon.length === 0}
+              >
+                Build Team
+              </Button>
+            </div>
           </CardHeader>
               <CardContent>
             {loading ? (
@@ -165,7 +248,10 @@ export default function DashboardPage() {
                               const bg = getTypeColor(t);
                               const border = darkenHex(bg, 0.25);
                               return (
-                                <span key={t} style={{ background: `#${bg}`, border: `2px solid #${border}`, textTransform: 'uppercase' }} className="text-white text-[0.6rem] px-2 py-0.5 rounded-full font-bold">{t}</span>
+                                <span key={t} style={{ background: `#${bg}`, border: `2px solid #${border}` }} className="text-white text-[0.6rem] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                  <TypeIcon type={t} size={16} />
+                                  <span className="uppercase">{t}</span>
+                                </span>
                               );
                             })}
                           </div>
@@ -195,13 +281,13 @@ export default function DashboardPage() {
               <ul className="flex gap-3 flex-wrap">
                 {badges.map((b) => (
                   <li key={b.id} className="w-20 h-20 sm:w-28 sm:h-28 bg-transparent flex flex-col items-center justify-center">
-                    <div className="w-14 h-14 sm:w-20 sm:h-20 relative">
-                      {b.badge_filename ? (
-                        <CroppedSprite src={`/badges/${b.badge_filename}`} alt={b.name} size={64} />
-                      ) : (
-                        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-yellow-400/30 flex items-center justify-center">🏅</div>
-                      )}
-                    </div>
+                    {b.slug ? (
+                      <div className="mb-1">
+                        <TypeIcon type={b.slug} size={36} withGlow />
+                      </div>
+                    ) : (
+                      <div className="mb-1 w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-yellow-400/30 flex items-center justify-center">🏅</div>
+                    )}
                     <div className="text-xs text-slate-300 mt-1 text-center truncate max-w-[68px] sm:max-w-[96px]">{b.name}</div>
                   </li>
                 ))}
@@ -211,6 +297,167 @@ export default function DashboardPage() {
         </Card>
       </div>
       </main>
+
+      {/* Team Builder Modal */}
+      {showTeamBuilder && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-slate-800/90 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 border border-slate-700 backdrop-blur-lg animate-modal-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">Team Builder</h3>
+              <Button size="sm" onClick={() => {
+                setShowTeamBuilder(false);
+                setSelectedTeam([]);
+                setExportedPaste('');
+                setCopied(false);
+              }}>Close</Button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-slate-300 mb-2">
+                Select up to 6 Pokémon for your team ({selectedTeam.length}/6)
+              </p>
+              <div className="flex gap-2 flex-wrap min-h-[3rem] p-3 bg-slate-900/50 rounded border border-slate-600">
+                {selectedTeam.length === 0 ? (
+                  <span className="text-slate-500 text-sm">No Pokémon selected</span>
+                ) : (
+                  selectedTeam.map((name, idx) => (
+                    <div key={idx} className="bg-yellow-400/20 border border-yellow-400/40 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                      <span>{name}</span>
+                      <button
+                        onClick={() => togglePokemonInTeam(name)}
+                        className="text-yellow-300 hover:text-yellow-100"
+                        aria-label={`Remove ${name}`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <h4 className="text-sm font-semibold mb-2 text-slate-200">Available Pokémon</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-2 bg-slate-900/30 rounded border border-slate-700">
+                {pokemon.map((p) => {
+                  const isSelected = selectedTeam.includes(p.name);
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => togglePokemonInTeam(p.name)}
+                      disabled={!isSelected && selectedTeam.length >= 6}
+                      className={`p-2 rounded flex items-center gap-3 transition-all ${
+                        isSelected
+                          ? 'bg-yellow-400/30 border-2 border-yellow-400'
+                          : 'bg-slate-800/60 border border-slate-600 hover:bg-slate-700/60'
+                      } ${!isSelected && selectedTeam.length >= 6 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <div className="w-10 h-10 min-w-[40px] rounded flex items-center justify-center overflow-hidden bg-transparent">
+                        {pokeMeta[p.name]?.sprite ? (
+                          <CroppedSprite src={pokeMeta[p.name].sprite || ''} alt={p.name} size={40} />
+                        ) : (
+                          <div className="text-lg">❓</div>
+                        )}
+                      </div>
+                      <div className="text-left flex-1">
+                        <div className="font-semibold text-sm">{p.name}</div>
+                        {pokeMeta[p.name]?.types && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {pokeMeta[p.name]?.types?.slice(0, 2).map((t) => {
+                              const bg = getTypeColor(t);
+                              return (
+                                <span key={t} style={{ background: `#${bg}` }} className="text-white text-[0.5rem] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                                  <TypeIcon type={t} size={14} />
+                                  <span className="uppercase">{t}</span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      {isSelected && (
+                        <span className="text-yellow-300 text-xl">✓</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              <Button
+                onClick={exportToPokepaste}
+                disabled={selectedTeam.length === 0 || exporting}
+                className="bg-blue-600 hover:bg-blue-500 text-white w-full sm:w-auto"
+              >
+                {exporting ? 'Exporting...' : 'Export to Pokepaste'}
+              </Button>
+              {exportedPaste && (
+                <Button
+                  onClick={copyToClipboard}
+                  className="bg-yellow-400 hover:bg-yellow-300 text-slate-900 flex items-center justify-center gap-2 w-full sm:w-auto"
+                >
+                  {copied ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+                        <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4 flex-shrink-0">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span className="truncate">Copy to Clipboard</span>
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {exportedPaste && (
+              <div className="bg-slate-900/60 rounded border border-slate-600 p-3 max-h-64 overflow-y-auto">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-slate-200">Pokepaste Export</h4>
+                </div>
+                <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono">{exportedPaste}</pre>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes modal-in {
+          from {
+            opacity: 0;
+            transform: scale(0.9) translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+
+        :global(.animate-fade-in) {
+          animation: fade-in 0.2s ease-out forwards;
+        }
+
+        :global(.animate-modal-in) {
+          animation: modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
     </div>
   );
 }

@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import TypeIcon from '@/components/TypeIcon';
 
 export default function GymCatchingPage() {
   const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [gymName, setGymName] = useState<string | null>(null);
+  const [gymType, setGymType] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [badgeUrl, setBadgeUrl] = useState<string | null>(null);
 
@@ -36,15 +38,13 @@ export default function GymCatchingPage() {
           setGymName(data.name || null);
           setMessage(data.message || 'Badge earned!');
           setStatus('success');
-          // attempt to load badge asset from public/badges/<slug>.png via a best-effort fetch to gyms table
+          // set gym type (used for displaying the type icon). We no longer use badge SVGs.
           try {
             const gymsRes = await fetch('/api/gyms');
             if (gymsRes.ok) {
-              const gyms: { id: number; name: string; badge_filename?: string }[] = await gymsRes.json();
+              const gyms: { id: number; slug: string; name: string }[] = await gymsRes.json();
               const matched = gyms.find((g) => g.name === data.name || g.id === data.gymId);
-              if (matched && matched.badge_filename) {
-                setBadgeUrl(`/badges/${matched.badge_filename}`);
-              }
+              if (matched && matched.slug) setGymType(matched.slug);
             }
           } catch {}
 
@@ -92,9 +92,15 @@ export default function GymCatchingPage() {
           <div className="flex flex-col items-center gap-4 relative">
             <div className="glow-lines" aria-hidden />
 
-            {badgeUrl ? (
-              <div className="sprite scale-in z-10" style={{ width: 160, height: 160, position: 'relative', transform: 'translateY(-12%)' }}>
-                <Image src={badgeUrl} alt={gymName} fill unoptimized style={{ objectFit: 'contain', imageRendering: 'pixelated' }} />
+            {gymType && (
+              <div className="scale-in z-10 mb-2">
+                <TypeIcon type={gymType} size={48} withGlow />
+              </div>
+            )}
+
+            {gymType ? (
+              <div className="scale-in z-10" style={{ transform: 'translateY(-6%)' }}>
+                <TypeIcon type={gymType} size={64} withGlow />
               </div>
             ) : (
               <div className="emoji scale-in z-10" aria-hidden>🏅</div>

@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "slug": "dark",
+    "name": "Dark Gym",
+    "description": ""
+  },
+  {
+    "id": 2,
+    "slug": "ghost",
+    "name": "Ghost Gym",
+    "description": ""
+  },
+  {
+    "id": 3,
+    "slug": "psychic",
+    "name": "Psychic Gym",
+    "description": ""
+  },
+  {
+    "id": 4,
+    "slug": "electric",
+    "name": "Electric Gym",
+    "description": ""
+  },
+  {
+    "id": 5,
+    "slug": "fire",
+    "name": "Fire Gym",
+    "description": ""
+  },
+  {
+    "id": 6,
+    "slug": "water",
+    "name": "Water Gym",
+    "description": ""
+  },
+  {
+    "id": 7,
+    "slug": "normal",
+    "name": "Normal Gym",
+    "description": ""
+  },
+  {
+    "id": 8,
+    "slug": "ground",
+    "name": "Ground Gym",
+    "description": ""
+  }
+]
