@@ -62,7 +62,7 @@ const POKEAPI_OVERRIDES: Record<string, string | number> = {
   "Morpeko": "morpeko-full-belly",
   "Indeedee": "indeedee-male",
   "Mimikyu": "mimikyu-disguised",
-  "Meowstic": "meowstic-male",
+  "Meowstic": "meowstic-female",
   "Minior": "minior-red-meteor",
   "Lycanroc": "lycanroc-midday",
   "Darmanitan": "darmanitan-standard",

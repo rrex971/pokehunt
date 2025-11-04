@@ -93,7 +93,7 @@ const POKEMON_LIST = [
   "Crabominable",
   "Glaceon",
   "Walrein",
-  "Rotom Frost",
+  "Rotom-Frost",
   "Beartic",
   "Mega Pidgeot",
   "Hawlucha",

@@ -11,17 +11,32 @@ import { Label } from "@/components/ui/label";
 
 // Helper to format UTC timestamps to IST
 function formatIST(utcDateString: string) {
-  const date = new Date(utcDateString);
-  // Add 5 hours 30 minutes (19800000 ms) for IST
-  const istDate = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
-  return istDate.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
+  // Parse timestamp components manually to avoid timezone interpretation issues
+  // PostgreSQL returns: "2025-11-04T12:34:56.789Z" or "2025-11-04 12:34:56.789"
+  const cleanStr = utcDateString.replace(' ', 'T').replace(/\.\d+/, '');
+  
+  // Parse components
+  const [datePart, timePart] = cleanStr.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute] = (timePart || '00:00:00').split(':').map(Number);
+  
+  // Create UTC timestamp
+  const utcTimestamp = Date.UTC(year, month - 1, day, hour, minute);
+  
+  // Add 5 hours 30 minutes for IST
+  const istTimestamp = utcTimestamp + (5.5 * 60 * 60 * 1000);
+  const istDate = new Date(istTimestamp);
+  
+  // Format using UTC methods
+  const istDay = String(istDate.getUTCDate()).padStart(2, '0');
+  const istMonth = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+  const istYear = istDate.getUTCFullYear();
+  let istHours = istDate.getUTCHours();
+  const istMinutes = String(istDate.getUTCMinutes()).padStart(2, '0');
+  const ampm = istHours >= 12 ? 'PM' : 'AM';
+  istHours = istHours % 12 || 12;
+  
+  return `${istDay}/${istMonth}/${istYear}, ${istHours}:${istMinutes} ${ampm}`;
 }
 
 interface Team {
