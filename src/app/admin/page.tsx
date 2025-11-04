@@ -58,6 +58,20 @@ export default function AdminPage() {
     caughtAt: string 
   }>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPokeMeta, setHistoryPokeMeta] = useState<Record<string, { sprite?: string; types?: string[] }>>({});
+
+  // Gym history modal state
+  const [showGymHistory, setShowGymHistory] = useState(false);
+  const [gymHistorySearch, setGymHistorySearch] = useState('');
+  const [gymHistory, setGymHistory] = useState<Array<{ 
+    id: number; 
+    gymId: number;
+    gymName: string; 
+    teamId: number; 
+    teamName: string; 
+    capturedAt: string 
+  }>>([]);
+  const [gymHistoryLoading, setGymHistoryLoading] = useState(false);
 
   const fetchTeams = useCallback(async () => {
     setLoading(true);
@@ -163,6 +177,34 @@ export default function AdminPage() {
       if (res.ok) {
         const data = await res.json();
         setPokemonHistory(Array.isArray(data) ? data : []);
+        
+        // Fetch sprites for all Pokemon in history
+        if (Array.isArray(data) && data.length > 0) {
+          const uniqueNames = [...new Set(data.map((p: any) => p.name))];
+          for (const name of uniqueNames) {
+            // Check if already cached
+            setHistoryPokeMeta((s) => {
+              if (s[name]) return s; // Already cached
+              
+              // Fetch from API if not cached
+              fetch(`/api/poke-meta?name=${encodeURIComponent(name)}`, { credentials: 'include' })
+                .then(r2 => {
+                  if (!r2.ok) return;
+                  return r2.json();
+                })
+                .then(jd => {
+                  if (jd) {
+                    setHistoryPokeMeta((prev) => ({ ...prev, [name]: { sprite: jd.sprite, types: jd.types } }));
+                  }
+                })
+                .catch(() => {
+                  // ignore individual meta fetch errors
+                });
+              
+              return s;
+            });
+          }
+        }
       } else {
         setPokemonHistory([]);
       }
@@ -179,6 +221,32 @@ export default function AdminPage() {
     fetchPokemonHistory();
   };
 
+  const fetchGymHistory = async (searchName?: string) => {
+    setGymHistoryLoading(true);
+    try {
+      const url = searchName 
+        ? `/api/admin/gym-history?name=${encodeURIComponent(searchName)}`
+        : '/api/admin/gym-history';
+      const res = await fetch(url, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setGymHistory(Array.isArray(data) ? data : []);
+      } else {
+        setGymHistory([]);
+      }
+    } catch {
+      setGymHistory([]);
+    } finally {
+      setGymHistoryLoading(false);
+    }
+  };
+
+  const openGymHistory = () => {
+    setShowGymHistory(true);
+    setGymHistorySearch('');
+    fetchGymHistory();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-[#0b2545] text-white p-4 sm:p-6 overflow-x-hidden">
       <header className="max-w-4xl mx-auto flex items-center justify-between mb-4 sm:mb-6 bg-slate-900/40 p-3 sm:p-4 rounded-lg">
@@ -193,6 +261,13 @@ export default function AdminPage() {
               <path d="M12 6v6l4 2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             Pokemon History
+          </Button>
+          <Button onClick={openGymHistory} className="bg-slate-700 text-yellow-300 hover:bg-slate-600 px-3 py-2 text-sm font-semibold flex items-center gap-2 border border-yellow-300/30">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+              <circle cx="12" cy="12" r="10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M12 6v6l4 2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Gym History
           </Button>
           <Button onClick={handleLogout} className="bg-yellow-400 text-slate-900 hover:bg-yellow-300 p-2" aria-label="Logout">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5" aria-hidden>
@@ -579,7 +654,17 @@ export default function AdminPage() {
                       className="bg-slate-700/50 rounded-lg p-4 flex items-center justify-between hover:bg-slate-700/70 transition-colors"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="text-2xl">🔴</div>
+                        <div className="w-16 h-16 flex items-center justify-center">
+                          {historyPokeMeta[entry.name]?.sprite ? (
+                            <CroppedSprite 
+                              src={historyPokeMeta[entry.name].sprite!} 
+                              alt={entry.name} 
+                              size={64}
+                            />
+                          ) : (
+                            <div className="text-2xl">🔴</div>
+                          )}
+                        </div>
                         <div>
                           <div className="font-semibold text-lg">{entry.name}</div>
                           <div className="text-sm text-slate-300">
@@ -602,6 +687,99 @@ export default function AdminPage() {
                 <p className="text-sm text-slate-300">
                   Showing {pokemonHistory.length} {pokemonHistory.length === 1 ? 'catch' : 'catches'}
                   {pokemonHistorySearch && ` for "${pokemonHistorySearch}"`}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Gym History Modal */}
+      {showGymHistory && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 animate-fade-in z-50">
+          <div className="bg-slate-800/95 rounded-lg max-w-4xl w-full p-6 border border-slate-700 backdrop-blur-lg animate-modal-in relative z-50 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">Gym Badge Capture History</h3>
+              <Button size="sm" onClick={() => setShowGymHistory(false)}>Close</Button>
+            </div>
+
+            <div className="mb-4">
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="Search gym by name..."
+                  value={gymHistorySearch}
+                  onChange={(e) => setGymHistorySearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      fetchGymHistory(gymHistorySearch);
+                    }
+                  }}
+                  className="flex-1 border-slate-700 focus:border-slate-400"
+                />
+                <Button onClick={() => fetchGymHistory(gymHistorySearch)}>
+                  Search
+                </Button>
+                {gymHistorySearch && (
+                  <Button variant="outline" onClick={() => {
+                    setGymHistorySearch('');
+                    fetchGymHistory();
+                  }}>
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto">
+              {gymHistoryLoading ? (
+                <p className="text-slate-300 text-center py-8">Loading...</p>
+              ) : gymHistory.length === 0 ? (
+                <p className="text-slate-300 text-center py-8">
+                  {gymHistorySearch ? 'No gyms found matching your search.' : 'No gym badges captured yet.'}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {gymHistory.map((entry) => (
+                    <div 
+                      key={entry.id} 
+                      className="bg-slate-700/50 rounded-lg p-4 flex items-center justify-between hover:bg-slate-700/70 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 flex items-center justify-center">
+                          {gymsList.find(g => g.id === entry.gymId) ? (
+                            <TypeIcon 
+                              type={gymsList.find(g => g.id === entry.gymId)!.slug} 
+                              size={36} 
+                              withGlow 
+                            />
+                          ) : (
+                            <div className="text-2xl">🏅</div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-lg">{entry.gymName}</div>
+                          <div className="text-sm text-slate-300">
+                            Captured by: <span className="text-blue-300 font-medium">{entry.teamName}</span> (Team #{entry.teamId})
+                          </div>
+                          <div className="text-xs text-slate-400 mt-1">
+                            {formatIST(entry.capturedAt)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Summary */}
+            {!gymHistoryLoading && gymHistory.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-700">
+                <p className="text-sm text-slate-300">
+                  Showing {gymHistory.length} {gymHistory.length === 1 ? 'capture' : 'captures'}
+                  {gymHistorySearch && ` for "${gymHistorySearch}"`}
                 </p>
               </div>
             )}
