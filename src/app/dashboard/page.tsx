@@ -269,18 +269,18 @@ export default function DashboardPage() {
               <ul className="divide-y divide-slate-700/40">
                   {pokemon.map((p) => (
                   <li key={p.id} className="p-2 sm:p-3 flex items-center justify-between bg-transparent min-h-14">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 sm:w-14 sm:h-14 min-w-[40px] min-h-[40px] rounded flex items-center justify-center overflow-hidden bg-transparent">
+                    <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 min-w-[40px] min-h-[40px] rounded flex items-center justify-center overflow-hidden bg-transparent flex-shrink-0">
                         {pokeMeta[p.name]?.sprite ? (
                           <CroppedSprite src={pokeMeta[p.name].sprite || ''} alt={p.name} size={48} />
                         ) : (
                           <div className="w-[70%] h-[70%] rounded-full border border-slate-600/40 animate-pulse flex items-center justify-center">
-                            <img src="/icons/pokeball.svg" alt="pokéball" className="w-4 h-4 sm:w-5 sm:h-5 opacity-90" />
+                            <img src="/icons/pokeball.svg" alt="pokéball" className="w-4 h-4 opacity-90" />
                           </div>
                         )}
                       </div>
-                      <div>
-                        <div className="font-semibold whitespace-nowrap truncate max-w-[10rem] sm:max-w-[16rem] text-sm sm:text-base">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold whitespace-nowrap truncate text-xs sm:text-sm">
                           {linksMap[p.name] ? (
                             // eslint-disable-next-line @next/next/no-html-link-for-pages
                             <a href={linksMap[p.name]} target="_blank" rel="noopener noreferrer" className="underline text-white">{p.name}</a>
@@ -288,18 +288,18 @@ export default function DashboardPage() {
                             p.name
                           )}
                         </div>
-                        <div className="text-[0.68rem] text-slate-400">
+                        <div className="text-[0.6rem] sm:text-[0.68rem] text-slate-400">
                           {formatIST(p.caughtAt)}
                         </div>
                         {pokeMeta[p.name]?.types && (
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-1 sm:gap-1.5 mt-1 flex-wrap">
                             {pokeMeta[p.name]?.types?.map((t) => {
                               const bg = getTypeColor(t);
                               const border = darkenHex(bg, 0.25);
                               return (
-                                <span key={t} style={{ background: `#${bg}`, border: `2px solid #${border}` }} className="text-white text-[0.6rem] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                                  <TypeIcon type={t} size={16} />
-                                  <span className="uppercase">{t}</span>
+                                <span key={t} style={{ background: `#${bg}`, border: `1.5px solid #${border}` }} className="text-white text-[0.5rem] sm:text-[0.55rem] px-1.5 sm:px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5 sm:gap-1 whitespace-nowrap">
+                                  <TypeIcon type={t} size={12} />
+                                  <span className="uppercase leading-none">{t}</span>
                                 </span>
                               );
                             })}
@@ -307,7 +307,7 @@ export default function DashboardPage() {
                         )}
                       </div>
                     </div>
-                    <div className="text-xs text-yellow-300 font-mono">ID: {p.id}</div>
+                    <div className="text-[0.6rem] sm:text-xs text-yellow-300 font-mono ml-2 flex-shrink-0">ID: {p.id}</div>
                   </li>
                 ))}
               </ul>
@@ -325,19 +325,19 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {badges.length === 0 ? (
-              <p>No badges yet. Visit a gym to earn badges!</p>
+              <p className="text-sm">No badges yet. Visit a gym to earn badges!</p>
             ) : (
-              <ul className="flex gap-3 flex-wrap">
+              <ul className="flex gap-2 sm:gap-3 flex-wrap">
                 {badges.map((b) => (
-                  <li key={b.id} className="w-20 h-20 sm:w-28 sm:h-28 bg-transparent flex flex-col items-center justify-center">
+                  <li key={b.id} className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-transparent flex flex-col items-center justify-center">
                     {b.slug ? (
-                      <div className="mb-1">
-                        <TypeIcon type={b.slug} size={36} withGlow />
+                      <div className="mb-0.5 sm:mb-1">
+                        <TypeIcon type={b.slug} size={32} withGlow />
                       </div>
                     ) : (
-                      <div className="mb-1 w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-yellow-400/30 flex items-center justify-center">🏅</div>
+                      <div className="mb-0.5 sm:mb-1 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-yellow-400/30 flex items-center justify-center">🏅</div>
                     )}
-                    <div className="text-xs text-slate-300 mt-1 text-center truncate max-w-[68px] sm:max-w-[96px]">{b.name}</div>
+                    <div className="text-[0.6rem] sm:text-xs text-slate-300 mt-0.5 sm:mt-1 text-center truncate w-full px-1">{b.name}</div>
                   </li>
                 ))}
               </ul>
