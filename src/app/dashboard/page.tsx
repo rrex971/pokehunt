@@ -285,7 +285,7 @@ export default function DashboardPage() {
             ) : pokemon.length > 0 ? (
               <ul className="divide-y divide-slate-700/40">
                   {pokemon.map((p) => (
-                  <li key={p.id} className="p-2 sm:p-3 flex items-center justify-between bg-transparent min-h-14">
+                  <li key={p.id} className="px-0 py-2 sm:py-3 flex items-center justify-between bg-transparent min-h-14">
                     <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 min-w-[40px] min-h-[40px] rounded flex items-center justify-center overflow-hidden bg-transparent flex-shrink-0">
                         {pokeMeta[p.name]?.sprite ? (
