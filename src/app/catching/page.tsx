@@ -129,7 +129,7 @@ export default function CatchingPage() {
               </div>
             )}
 
-            <div className="text-[0.72rem] uppercase tracking-wide text-white/80">you caught a</div>
+            <div className="text-[0.72rem] uppercase tracking-wide text-white/80">you caught</div>
             <div className="pokemon-name scale-in text-2xl sm:text-3xl md:text-4xl font-bold text-yellow-300">{pokemonName}</div>
           </div>
         ) : null}
